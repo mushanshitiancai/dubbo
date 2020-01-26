@@ -113,20 +113,38 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
     }
 
     public void onApplicationEvent(ContextRefreshedEvent event) {
+        // 是否关闭延迟导出 && 是否未导出 && 是不是未被取消导出
         if (isDelay() && !isExported() && !isUnexported()) {
             if (logger.isInfoEnabled()) {
                 logger.info("The service ready on spring started. service: " + getInterface());
             }
+            // 导出服务
             export();
         }
     }
 
+    /**
+     * 这个方法首先会根据条件决定是否导出服务，比如有些服务设置了延时导出，那么此时就不应该在此处导出。
+     * 还有一些服务已经被导出了，或者当前服务被取消导出了，此时也不能再次导出相关服务。
+     * 注意这里的 isDelay 方法，这个方法字面意思是“是否延迟导出服务”，返回 true 表示延迟导出，false 表示不延迟导出。
+     * 但是该方法真实意思却并非如此，当方法返回 true 时，表示无需延迟导出。
+     * 返回 false 时，表示需要延迟导出。与字面意思恰恰相反，这个需要大家注意一下。
+     *
+     * 该方法目前已被重构，详细请参考 https://github.com/apache/dubbo/pull/2686
+     *
+     * @return true: 表示不延迟导出服务，false: 表示延迟导出服务
+     */
     private boolean isDelay() {
+        // 获取ServiceConfig的delay配置
         Integer delay = getDelay();
+
         ProviderConfig provider = getProvider();
+        // 如果前面获取的 delay 为空，这里继续获取
         if (delay == null && provider != null) {
             delay = provider.getDelay();
         }
+
+        // 判断 delay 是否为空，或者等于 -1
         return supportedApplicationListener && (delay == null || delay == -1);
     }
 
